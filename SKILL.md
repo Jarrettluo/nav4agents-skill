@@ -1,55 +1,63 @@
 ---
 name: nav4agents
-description: "AI Agent 导航工具，汇聚优秀的 AI Agent、MCP 服务器与智能工具。用于查询和发现：(1) MCP 服务器信息（如 GitHub MCP、Filesystem MCP、Brave Search MCP 等），(2) AI Skills 信息（如 Auto Code Review、API Docs Generator、Unit Test Generator 等），(3) AI 编码工具对比（Codex、Cursor、Windsurf）。当用户需要查找 AI 工具、MCP 服务器、Skills 或对比 AI 编码工具时使用此技能。"
+description: "Nav4Agents（nav4agents.com）数据查询：MCP 服务器、AI Skills 与 Coding Plan 套餐。用于查找、发现、对比 AI Agent 工具。数据每周一自动更新，支持直接读取静态 JSON（页面为客户端渲染，抓 HTML 拿不到列表数据）。"
 ---
 
 # Nav4Agents 查询
 
-用于查询 nav4agents.com 上的 MCP 服务器、AI Skills 和智能工具信息。
+nav4agents.com 是 AI Agent 工具导航站，提供 MCP 服务器、AI Skills 与 Coding Plan 的结构化数据。
 
-## 网站信息
+**查询要点：页面为客户端渲染，直接抓 HTML 拿不到列表数据 → 优先读取静态 JSON。**
 
-**网址**: https://nav4agents.com
+## 静态 JSON 接口（免鉴权，每周一自动更新）
 
-### 主要版块
+| 数据 | 地址 | 条目数 |
+|---|---|---|
+| MCP 服务器 | https://nav4agents.com/data/mcp.json | ~200 |
+| AI Skills | https://nav4agents.com/data/skills.json | ~165 |
+| 编程套餐对比 | https://nav4agents.com/data/codingplan.json | ~75 |
+| 热门 MCP 详情 | https://nav4agents.com/data/mcp-details.json | ~120 |
+| 元信息 | https://nav4agents.com/data/meta.json | counts + scannedAt |
 
-1. **MCP 生态** - https://nav4agents.com/mcp
-   - 开发工具、效率工具、AI 增强、内容处理、数据处理、垂直行业
+### 主要字段
 
-2. **AI Skills** - https://nav4agents.com/skills
-   - 开发辅助、内容处理等各类 AI 技能
+- **mcp.json**: id, name, slug, description, category, type(local|remote), url, installCmd, stars(热度; 0=官方收录), featured, source, smitheryId, verified
+- **skills.json**: id, name, slug, ownerHandle, description, category, installCmd(clawhub install @owner/slug), usage(下载量), topics, version, changelog, url
+- **codingplan.json**: platform, plan, link, firstMonthPrice, monthlyPrice, quarterlyPrice, yearlyPrice, models[], fiveHourRequests, weeklyRequests, monthlyRequests, rating
+- **mcp-details.json**（按 slug 索引）: tools[{name,description}], config[{name,required,description}], remoteUrl, iconUrl, verified
 
-3. **智能工具对比** - https://nav4agents.com/subscriptions
-   - 主流 AI 编码工具对比（Codex 免费、Cursor $20/月、Windsurf $15/月）
-
-## 查询方法
-
-使用 web_fetch 工具获取最新信息：
+## 使用示例
 
 ```python
-# 查询 MCP 服务器列表
-web_fetch(url="https://nav4agents.com/mcp")
+import requests
 
-# 查询 AI Skills 列表
-web_fetch(url="https://nav4agents.com/skills")
+# 1) 关键词搜索 MCP / Skills
+mcps = [m for m in requests.get('https://nav4agents.com/data/mcp.json').json()
+        if 'search' in (m['name'] + m['description']).lower()]
 
-# 查询特定 MCP 详情（如 GitHub MCP）
-web_fetch(url="https://nav4agents.com/mcp/github-mcp")
+# 2) 热度 Top MCP
+top = sorted([m for m in requests.get('https://nav4agents.com/data/mcp.json').json() if m['stars']],
+             key=lambda m: -m['stars'])[:10]
 
-# 查询特定 Skill 详情（如 Auto Code Review）
-web_fetch(url="https://nav4agents.com/skills/auto-code-review")
+# 3) 编程套餐按月费排序
+plans = requests.get('https://nav4agents.com/data/codingplan.json').json()
+def num(p):
+    d = ''.join(c for c in p['monthlyPrice'] if c.isdigit() or c == '.')
+    return float(d) if d else 1e9
+cheap = sorted(plans, key=num)[:10]
 ```
 
-## 数据来源
+## 网页入口
 
-- 热门 MCP 服务器：GitHub MCP (1250⭐)、Filesystem MCP (980⭐)、Brave Search MCP (820⭐)、Notion MCP (890⭐)
-- 热门 AI Skills：Auto Code Review (3200次使用)、Git Workflow Helper (2200次使用)、Unit Test Generator (2100次使用)、API Docs Generator (1800次使用)
+- MCP: https://nav4agents.com/mcp（详情 `/mcp/<slug>`，含工具列表与配置项）
+- Skills: https://nav4agents.com/skills（详情 `/skills/<slug>`，含版本说明）
+- 套餐对比: https://nav4agents.com/codingplan
+- 订阅工具: https://nav4agents.com/subscriptions
 
-## 使用场景
+## 数据来源与更新
 
-- 用户需要查找特定功能的 MCP 服务器
-- 用户需要发现新的 AI Skills
-- 用户想对比主流 AI 编码工具
-- 用户想了解某个 MCP 或 Skill 的详细信息
-
-直接访问对应页面获取最新内容。
+- MCP: Smithery Registry（热度）+ MCP 官方注册表
+- Skills: ClawHub（按下载量排序）
+- 套餐: wmpeng/codingplan
+- 每周一自动扫描更新（扫描时点见 meta.json → scannedAt）
+- 站点收藏为浏览器本地存储（无账号体系）
